@@ -9,10 +9,12 @@ from glom import glom, Assign
 from tqdm import tqdm
 from huggingface_hub import HfApi
 from itertools import combinations
+from safetensors.torch import load_model, save_model
 
 os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'
 
-def fix_config(save_path, num_models, non_linearity, merge_embedding_layers, merge_layernorms, uses_base_model):
+def fix_config(save_path, num_models, non_linearity, merge_embedding_layer
+               s, merge_layernorms, uses_base_model):
 
     config_path = os.path.join(save_path, 'config.json')
     with open(config_path, 'r') as file:
@@ -212,7 +214,7 @@ def merge_models(base_model_id,
     print(f"Total number of trainable parameters: {num_trainable_params}")
 
     print(f"Saving merged model to {output_path}")
-    merged_model.save_pretrained(output_path)
+    merged_model.save_model(output_path)
     tokenizer.save_pretrained(output_path)
 
     fixed_config_path = fix_config(output_path, num_models=len(models), non_linearity=non_linearity, merge_embedding_layers=merge_embedding_layers, merge_layernorms=merge_layernorms, uses_base_model=use_base_model)
