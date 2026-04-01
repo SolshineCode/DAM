@@ -24,6 +24,12 @@ def fix_config(save_path, num_models, non_linearity, merge_embedding_layers, mer
     elif data['model_type'] == "llama":
         data['model_type'] = "mergedllama"
         data['architectures'][0] = 'MergedLlamaForCausalLM'
+    elif data['model_type'] == "qwen3_5_text" or data['model_type'] == "qwen3_5":
+        data['model_type'] = "mergedqwen3_5"
+        data['architectures'][0] = 'MergedQwen3_5ForCausalLM'
+    elif data['model_type'] == "nemotron_h":
+        data['model_type'] = "mergednemotron_h"
+        data['architectures'][0] = 'MergedNemotronHForCausalLM'
 
     data['num_merged_models'] = num_models
     data['non_linearity'] = non_linearity

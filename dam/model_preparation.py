@@ -5,14 +5,22 @@ from modeling.mistral.config import MergedMistralConfig
 from modeling.mistral.modeling import MergedMistralForCausalLM
 from modeling.llama3.config import MergedLlamaConfig
 from modeling.llama3.modeling import MergedLlamaForCausalLM
+from modeling.qwen3_5.config import MergedQwen3_5Config
+from modeling.qwen3_5.modeling import MergedQwen3_5ForCausalLM
+from modeling.nemotron.config import MergedNemotronHConfig
+from modeling.nemotron.modeling import MergedNemotronHForCausalLM
 from glom import glom, Assign
 from modeling.dam import DAMLinearLayer
 from utils import find_linear_layers, find_embedding_layers
 
 AutoConfig.register("mergedmistral", MergedMistralConfig)
 AutoConfig.register("mergedllama", MergedLlamaConfig)
+AutoConfig.register("mergedqwen3_5", MergedQwen3_5Config)
+AutoConfig.register("mergednemotron_h", MergedNemotronHConfig)
 AutoModelForCausalLM.register(MergedMistralConfig, MergedMistralForCausalLM)
 AutoModelForCausalLM.register(MergedLlamaConfig, MergedLlamaForCausalLM)
+AutoModelForCausalLM.register(MergedQwen3_5Config, MergedQwen3_5ForCausalLM)
+AutoModelForCausalLM.register(MergedNemotronHConfig, MergedNemotronHForCausalLM)
 
 def print_trainable_parameters(model):
     """
