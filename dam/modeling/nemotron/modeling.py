@@ -478,7 +478,7 @@ class MergedNemotronHMamba2Mixer(nn.Module):
 
             # Discretize
             # dA: (B, num_heads, 1, 1)
-            dA = torch.exp(dt_t.unsqueeze(-1).unsqueeze(-1) * A.unsqueeze(-1).unsqueeze(0))
+            dA = torch.exp(dt_t.unsqueeze(-1).unsqueeze(-1) * A[None, :, None, None])
             # dB: (B, num_heads, head_dim, ssm_state_size)
             dB = dt_t.unsqueeze(-1).unsqueeze(-1) * B_t.unsqueeze(2) * x_t.unsqueeze(-1)
 
@@ -903,13 +903,15 @@ class MergedNemotronHModel(MergedNemotronHPreTrainedModel):
 
         return_legacy_cache = False
         if use_cache and not isinstance(past_key_values, Cache) and not self.training:
-            past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-            return_legacy_cache = True
-            logger.warning_once(
-                "We detected that you are passing `past_key_values` as a tuple and this is deprecated and "
-                "will be removed in v4.43. Please use an appropriate `Cache` class "
-                "(https://huggingface.co/docs/transformers/v4.41.3/en/internal/generation_utils#transformers.Cache)"
-            )
+            if hasattr(DynamicCache, "from_legacy_cache"):
+                past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+                return_legacy_cache = True
+                logger.warning_once(
+                    "We detected that you are passing `past_key_values` as a tuple and this is deprecated. "
+                    "Please use an appropriate `Cache` class."
+                )
+            else:
+                past_key_values = DynamicCache()  # fresh cache for newer transformers
 
         if cache_position is None:
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
@@ -1108,11 +1110,11 @@ class MergedNemotronHForCausalLM(MergedNemotronHPreTrainedModel):
     def get_decoder(self):
         return self.model
 
-    def tie_weights(self):
+    def tie_weights(self, **kwargs):
         if isinstance(self.get_input_embeddings(), DAMEmbeddingLayer) and isinstance(self.lm_head, DAMLinearLayer):
             self.lm_head.tie_with_embeddings(self.get_input_embeddings())
         else:
-            super().tie_weights()
+            super().tie_weights(**kwargs)
 
     def forward(
         self,

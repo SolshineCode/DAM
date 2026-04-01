@@ -474,11 +474,6 @@ class MergedQwen3_5GatedDeltaNet(nn.Module):
 
         # Compute decay gate: g = -exp(A_log) * softplus(alpha + dt_bias)
         # alpha is (B, L, num_v_heads), dt_bias is (num_v_heads,)
-        g = -torch.exp(self.A_log.float()) * F.softplus(alpha.unsqueeze(-1) + self.dt_bias)
-        # g shape: (B, L, num_v_heads, 1)  -- alpha was (B, L, num_v_heads), after unsqueeze(-1) + broadcast
-        # Actually alpha is (B, L, num_v_heads), dt_bias is (num_v_heads,), sum is (B, L, num_v_heads)
-        # softplus gives (B, L, num_v_heads), multiply gives (B, L, num_v_heads)
-        # We need to fix the shape computation:
         g = -torch.exp(self.A_log.float()) * F.softplus(alpha + self.dt_bias)  # (B, L, num_v_heads)
         g = g.transpose(1, 2).unsqueeze(-1)  # (B, num_v_heads, L, 1)
 
@@ -566,11 +561,6 @@ class MergedQwen3_5DecoderLayer(nn.Module):
         self.mlp = MergedQwen3_5MLP(config)
 
         # Layer norms
-        NormClass = (
-            lambda size, eps: Qwen3_5DAMRMSNorm(size, eps=eps, num_models=config.num_merged_models)
-            if config.dam_layernorms
-            else lambda size, eps: Qwen3_5RMSNorm(size, eps=eps)
-        )
         self.input_layernorm = (
             Qwen3_5DAMRMSNorm(config.hidden_size, eps=config.rms_norm_eps, num_models=config.num_merged_models)
             if config.dam_layernorms
@@ -873,13 +863,15 @@ class MergedQwen3_5TextModel(MergedQwen3_5PreTrainedModel):
 
         return_legacy_cache = False
         if use_cache and not isinstance(past_key_values, Cache) and not self.training:
-            past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-            return_legacy_cache = True
-            logger.warning_once(
-                "We detected that you are passing `past_key_values` as a tuple and this is deprecated and "
-                "will be removed in v4.43. Please use an appropriate `Cache` class "
-                "(https://huggingface.co/docs/transformers/v4.41.3/en/internal/generation_utils#transformers.Cache)"
-            )
+            if hasattr(DynamicCache, "from_legacy_cache"):
+                past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+                return_legacy_cache = True
+                logger.warning_once(
+                    "We detected that you are passing `past_key_values` as a tuple and this is deprecated. "
+                    "Please use an appropriate `Cache` class."
+                )
+            else:
+                past_key_values = DynamicCache()  # fresh cache for newer transformers
 
         if cache_position is None:
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
@@ -947,7 +939,7 @@ class MergedQwen3_5TextModel(MergedQwen3_5PreTrainedModel):
             all_hidden_states += (hidden_states,)
 
         next_cache = next_decoder_cache if use_cache else None
-        if return_legacy_cache:
+        if return_legacy_cache and next_cache is not None:
             next_cache = next_cache.to_legacy_cache()
 
         if not return_dict:
@@ -1050,11 +1042,11 @@ class MergedQwen3_5ForCausalLM(MergedQwen3_5PreTrainedModel):
     def get_decoder(self):
         return self.model
 
-    def tie_weights(self):
+    def tie_weights(self, **kwargs):
         if isinstance(self.get_input_embeddings(), DAMEmbeddingLayer) and isinstance(self.lm_head, DAMLinearLayer):
             self.lm_head.tie_with_embeddings(self.get_input_embeddings())
         else:
-            super().tie_weights()
+            super().tie_weights(**kwargs)
 
     def forward(
         self,
